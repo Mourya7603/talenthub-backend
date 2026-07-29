@@ -28,7 +28,7 @@ const callOpenRouter = async (messages, options = {}) => {
         "X-Title": process.env.OPENROUTER_APP_NAME || "TalentHub",
       },
       body: JSON.stringify({
-        model: options.model || process.env.OPENROUTER_MODEL || "meta-llama/llama-3.1-8b-instruct:free",
+        model: options.model || process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
         messages,
         temperature: options.temperature ?? 0.4,
         max_tokens: options.maxTokens || 700,
