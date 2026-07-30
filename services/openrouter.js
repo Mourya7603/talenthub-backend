@@ -55,7 +55,7 @@ const callOpenRouter = async (messages, options = {}) => {
     throw new ApiError(
       response.status === 429 ? 429 : 502,
       response.status === 429
-        ? "AI service rate limit reached. Please try again in a moment."
+        ? "The AI provider (OpenRouter) rate-limited this request — this is usually the free-tier model's own quota, not TalentHub's limit. Wait a minute and try again, or switch OPENROUTER_MODEL to a different free model."
         : `AI service error${detail ? ": " + detail : ""}`
     );
   }
