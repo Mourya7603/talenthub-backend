@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { protect, authorize } = require("../middleware/auth");
-const { generateInterviewPrep, askHiringAssistant } = require("../controllers/aiController");
+const { generateInterviewPrep, askHiringAssistant, generateCoverLetter } = require("../controllers/aiController");
 
 const router = express.Router();
 
@@ -28,6 +28,15 @@ router.post(
   authorize("recruiter"),
   aiLimiter,
   askHiringAssistant
+);
+
+// BONUS FEATURE: AI-Generated Cover Letter
+router.post(
+  "/cover-letter/:jobId",
+  protect,
+  authorize("applicant"),
+  aiLimiter,
+  generateCoverLetter
 );
 
 module.exports = router;

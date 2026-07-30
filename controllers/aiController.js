@@ -109,4 +109,55 @@ Recruiter question: ${question}`;
   res.status(200).json(new ApiResponse(200, { answer }));
 });
 
-module.exports = { generateInterviewPrep, askHiringAssistant };
+// ---------------------------------------------------------------------------
+// BONUS FEATURE: AI-Generated Cover Letter (applicant)
+// Drafts a tailored cover letter from the applicant's own profile data and the
+// job's description, which the applicant can edit before submitting it with
+// their application (Application.coverNote). Never invents specifics — the
+// prompt is explicitly restricted to the applicant's stored profile fields.
+// ---------------------------------------------------------------------------
+
+// @desc    Generate an AI cover letter draft for a given job
+// @route   POST /api/ai/cover-letter/:jobId
+// @access  Private (applicant)
+const generateCoverLetter = asyncHandler(async (req, res) => {
+  const job = await Job.findById(req.params.jobId).populate("recruiter", "companyName");
+  if (!job) throw new ApiError(404, "Job not found");
+
+  const applicant = req.user;
+
+  const systemPrompt = `You are a career coach ghostwriting a short cover letter in the applicant's own voice.
+STRICT RULES:
+- Only use the applicant details provided below (name, bio, skills, experience). Never invent specific past
+  employers, companies, projects, metrics, or achievements that are not present in that data.
+- If the applicant's bio or skills are sparse, keep the letter general and enthusiasm-focused rather than
+  fabricating specifics to fill space.
+- Write 150-220 words, first person, professional but warm tone. No placeholder brackets like [Company Name].
+- Output ONLY the letter body text - no subject line, no "Dear Hiring Manager" header block, no signature block,
+  no commentary before or after.`;
+
+  const userPrompt = `Job Title: ${job.title}
+Company: ${job.company}
+Required Skills: ${job.skills.join(", ") || "Not specified"}
+Job Description:
+${job.description}
+
+Applicant Name: ${applicant.name}
+Applicant Bio: ${applicant.bio || "Not provided"}
+Applicant Skills: ${applicant.skills?.length ? applicant.skills.join(", ") : "Not specified"}
+Applicant Experience: ${applicant.experience || "Not specified"}
+
+Write the cover letter for this applicant applying to this specific role.`;
+
+  const content = await callOpenRouter(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    { maxTokens: 400 }
+  );
+
+  res.status(200).json(new ApiResponse(200, { jobId: job._id, content }));
+});
+
+module.exports = { generateInterviewPrep, askHiringAssistant, generateCoverLetter };

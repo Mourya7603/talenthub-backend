@@ -91,6 +91,20 @@ Both AI routes are rate-limited (10 req/min/IP) since LLM calls are costlier tha
 CRUD, and return clear 503/504/429 error messages on outage, timeout, or rate limiting
 (see `services/openrouter.js`) so the frontend can show meaningful error states.
 
+## Bonus Feature: AI-Generated Cover Letter
+
+- `POST /api/ai/cover-letter/:jobId` — **applicant** — drafts a tailored cover
+  letter (150–220 words) from the applicant's own profile (name, bio, skills,
+  experience) and the job's title/description/skills. Like the hiring
+  assistant, the prompt is explicitly restricted to never invent specific
+  past employers, projects, or achievements the applicant hasn't actually
+  listed — sparse profiles get a general, enthusiasm-focused letter instead
+  of fabricated specifics.
+- The draft is fully editable before the applicant submits it — it populates
+  the existing `Application.coverNote` field (which the apply endpoint
+  already accepted but the frontend never previously exposed a way to fill).
+- Same rate limiting and error handling as the other two AI routes.
+
 ## Notes on design choices
 
 - **Validation**: `Job.applicationDeadline` is validated as future-only both at the
