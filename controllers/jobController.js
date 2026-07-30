@@ -4,6 +4,11 @@ const Application = require("../models/Application");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
 
+// Escapes regex special characters so free-text input can't break $regex
+// queries or be (ab)used as a regex — e.g. "C++", "R&D (Remote)", "St. Louis"
+// would previously either throw or match unpredictably.
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Builds a Mongo filter object from query params
 const buildFilter = (query) => {
   const filter = { status: "active" };
@@ -12,7 +17,7 @@ const buildFilter = (query) => {
     filter.$text = { $search: query.search };
   }
   if (query.location) {
-    filter.location = { $regex: query.location, $options: "i" };
+    filter.location = { $regex: escapeRegex(query.location.trim()), $options: "i" };
   }
   if (query.employmentType) {
     filter.employmentType = query.employmentType;
