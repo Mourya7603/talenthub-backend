@@ -5,19 +5,14 @@ Express + MongoDB + JWT API for the TalentHub AI-powered hiring platform.
 ## Setup
 
 ```bash
-cp .env.example .env      # fill in MONGO_URI, JWT_SECRET, OPENROUTER_API_KEY
 npm install
 npm run seed               # optional: creates demo recruiter + applicant + jobs
 npm run dev                 # starts on http://localhost:5000
 ```
 
 Demo logins after seeding (all passwords `password123`):
-- Recruiter: `recruiter@demo.com` (Nimbus Tech — has the most seeded applicants)
+- Recruiter: `karan@vertexsystems.demo`
 - Applicant: `applicant@demo.com`
-- 3 more recruiters and 7 more applicants are seeded too, for a fuller demo —
-  see the console output after `npm run seed` for the full list, or check
-  `utils/seed.js`. In total: 4 recruiters, 8 applicants, 24 jobs, and a mix
-  of applications/bookmarks so the dashboard and applicants pages aren't empty.
 
 ## Architecture
 
