@@ -8,7 +8,7 @@ const generateToken = require("../utils/generateToken");
 // @route   POST /api/auth/register/applicant
 // @access  Public
 const registerApplicant = asyncHandler(async (req, res) => {
-  const { name, email, password, skills, experience, bio } = req.body;
+  const { name, email, password, skills, experience, bio, resumeUrl } = req.body;
 
   const existing = await User.findOne({ email });
   if (existing) throw new ApiError(409, "An account with this email already exists");
@@ -21,6 +21,7 @@ const registerApplicant = asyncHandler(async (req, res) => {
     skills: skills || [],
     experience: experience || "",
     bio: bio || "",
+    resumeUrl: resumeUrl || "",
   });
 
   const token = generateToken(user._id, user.role);
