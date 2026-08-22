@@ -21,6 +21,12 @@ const normalizeError = (err) => {
     return new ApiError(400, `Invalid value for field '${err.path}'`);
   }
 
+  // Multer upload errors (file too large, too many files, etc.)
+  if (err.name === "MulterError") {
+    const message = err.code === "LIMIT_FILE_SIZE" ? "File is too large (max 5MB)." : err.message;
+    return new ApiError(400, message);
+  }
+
   return new ApiError(err.statusCode || 500, err.message || "Internal server error");
 };
 
