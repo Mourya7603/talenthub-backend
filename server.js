@@ -1,4 +1,5 @@
 require("dotenv").config();
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -15,11 +16,15 @@ const bookmarkRoutes = require("./routes/bookmarkRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 const app = express();
 
 // --- Core middleware ---
-app.use(helmet());
+// crossOriginResourcePolicy defaults to "same-origin", which would silently
+// block the frontend (a different origin — e.g. a Vercel domain) from
+// loading uploaded photos/resumes served from this API's /uploads path.
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "*",
@@ -43,6 +48,11 @@ app.use(
   })
 );
 
+// Serve uploaded resumes/photos. See middleware/upload.js for the note on
+// this being local-disk storage — fine for dev, but ephemeral on most
+// serverless hosts in production.
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // --- Health check ---
 app.get("/api/health", (req, res) => {
   res.status(200).json({ success: true, message: "TalentHub API is running" });
@@ -56,6 +66,7 @@ app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // --- Error handling (must be last) ---
 app.use(notFound);
