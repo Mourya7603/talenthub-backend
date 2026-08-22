@@ -40,6 +40,12 @@ const jobSchema = new mongoose.Schema(
       required: [true, "Application deadline is required"],
       validate: {
         validator: function (v) {
+          // Only enforce "must be in the future" when this is a new job or the
+          // deadline is being explicitly changed. Without this guard, saving
+          // ANY edit to an older job (e.g. fixing a typo in the description)
+          // would fail once its original deadline had simply passed with time,
+          // since Mongoose re-validates the whole document on every save.
+          if (!this.isNew && !this.isModified("applicationDeadline")) return true;
           return v > new Date();
         },
         message: "Application deadline cannot be in the past",
