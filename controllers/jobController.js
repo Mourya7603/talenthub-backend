@@ -9,25 +9,56 @@ const ApiResponse = require("../utils/ApiResponse");
 // would previously either throw or match unpredictably.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Builds a Mongo filter object from query params
-const buildFilter = (query) => {
+// Splits a value that may arrive as a comma-separated string (from the URL
+// query) or an actual array (if a client ever sends repeated params) into a
+// clean array, for the multi-select filters (employmentType/workMode/experience).
+const toArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  return value.split(",").map((v) => v.trim()).filter(Boolean);
+};
+
+// Builds a Mongo filter object from query params.
+// "active" listings additionally exclude jobs whose deadline has passed —
+// status alone ("active" vs "archived") doesn't capture expiry, since a job
+// stays "active" in the DB right up until a recruiter manually archives it.
+const buildFilter = (query, { includeExpired = false } = {}) => {
   const filter = { status: "active" };
 
+  if (!includeExpired) {
+    filter.applicationDeadline = { $gte: new Date() };
+  }
+
   if (query.search) {
-    filter.$text = { $search: query.search };
+    // Word-level OR matching instead of MongoDB's $text (which stems/tokenizes
+    // in ways that don't reliably match partial phrases like "Frontend
+    // Engineering" against a job titled "Frontend Engineer" — a real gap
+    // reported in review). Splitting into terms and matching ANY term as a
+    // substring across title/company/skills is more forgiving and predictable.
+    const terms = query.search.trim().split(/\s+/).filter(Boolean).map(escapeRegex);
+    if (terms.length > 0) {
+      const termRegexes = terms.map((t) => new RegExp(t, "i"));
+      filter.$or = [
+        { title: { $in: termRegexes } },
+        { company: { $in: termRegexes } },
+        { skills: { $in: termRegexes } },
+      ];
+    }
   }
   if (query.location) {
     filter.location = { $regex: escapeRegex(query.location.trim()), $options: "i" };
   }
-  if (query.employmentType) {
-    filter.employmentType = query.employmentType;
-  }
-  if (query.workMode) {
-    filter.workMode = query.workMode;
-  }
-  if (query.experience) {
-    filter.experience = query.experience;
-  }
+
+  // Multi-select: each accepts a comma-separated list (?employmentType=Full-time,Contract)
+  const employmentTypes = toArray(query.employmentType);
+  if (employmentTypes.length > 0) filter.employmentType = { $in: employmentTypes };
+
+  const workModes = toArray(query.workMode);
+  if (workModes.length > 0) filter.workMode = { $in: workModes };
+
+  const experiences = toArray(query.experience);
+  if (experiences.length > 0) filter.experience = { $in: experiences };
+
   if (query.salaryMin || query.salaryMax) {
     filter.salary = {};
     if (query.salaryMin) filter.salary.$gte = Number(query.salaryMin);
@@ -80,7 +111,7 @@ const getJobs = asyncHandler(async (req, res) => {
 // @route   GET /api/jobs/featured
 // @access  Public
 const getFeaturedJobs = asyncHandler(async (req, res) => {
-  const jobs = await Job.find({ status: "active" })
+  const jobs = await Job.find({ status: "active", applicationDeadline: { $gte: new Date() } })
     .populate("recruiter", "name companyName companyLogo")
     .sort({ salary: -1 })
     .limit(6);
@@ -91,7 +122,7 @@ const getFeaturedJobs = asyncHandler(async (req, res) => {
 // @route   GET /api/jobs/recent
 // @access  Public
 const getRecentJobs = asyncHandler(async (req, res) => {
-  const jobs = await Job.find({ status: "active" })
+  const jobs = await Job.find({ status: "active", applicationDeadline: { $gte: new Date() } })
     .populate("recruiter", "name companyName companyLogo")
     .sort({ createdAt: -1 })
     .limit(3);
@@ -100,7 +131,7 @@ const getRecentJobs = asyncHandler(async (req, res) => {
 
 // @desc    Get single job with similar jobs
 // @route   GET /api/jobs/:id
-// @access  Public
+// @access  Public (archived jobs are only visible to the recruiter who owns them)
 const getJobById = asyncHandler(async (req, res) => {
   const job = await Job.findById(req.params.id).populate(
     "recruiter",
@@ -108,10 +139,20 @@ const getJobById = asyncHandler(async (req, res) => {
   );
   if (!job) throw new ApiError(404, "Job not found");
 
+  const isOwner = req.user && job.recruiter._id.toString() === req.user._id.toString();
+  if (job.status === "archived" && !isOwner) {
+    // Archived jobs previously had no status check at all here — anyone who
+    // knew or guessed a job's id/URL could view a job the recruiter had
+    // deliberately taken down. Only the owning recruiter can still see it
+    // (e.g. to review it before permanently deleting or reactivating).
+    throw new ApiError(404, "Job not found");
+  }
+
   const similarJobs = await Job.find({
     _id: { $ne: job._id },
     status: "active",
-    $or: [{ skills: { $in: job.skills } }, { title: { $regex: job.title.split(" ")[0], $options: "i" } }],
+    applicationDeadline: { $gte: new Date() },
+    $or: [{ skills: { $in: job.skills } }, { title: { $regex: escapeRegex(job.title.split(" ")[0]), $options: "i" } }],
   })
     .limit(4)
     .select("title company salary location employmentType workMode createdAt");
@@ -122,7 +163,9 @@ const getJobById = asyncHandler(async (req, res) => {
     applicationStatus = existing ? existing.status : null;
   }
 
-  res.status(200).json(new ApiResponse(200, { job, similarJobs, applicationStatus }));
+  const isExpired = job.applicationDeadline < new Date();
+
+  res.status(200).json(new ApiResponse(200, { job, similarJobs, applicationStatus, isExpired }));
 });
 
 // @desc    Create a job
