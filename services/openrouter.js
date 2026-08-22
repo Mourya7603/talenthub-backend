@@ -15,7 +15,7 @@ const callOpenRouter = async (messages, options = {}) => {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 25000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 45000);
 
   let response;
   try {
