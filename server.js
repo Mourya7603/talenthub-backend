@@ -74,20 +74,26 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// Bind the port immediately, independent of the database connection.
-// Previously this awaited connectDB() first — if Mongo was slow to connect,
-// misconfigured, or Atlas's IP allowlist didn't include Render's egress IP,
-// app.listen() never ran at all, so Render's deploy port-scan saw nothing
-// listening on 0.0.0.0 and failed the deploy outright ("No open ports
-// detected"), even though the failure was really "Mongo is slow/unreachable",
-// not "the server crashed." Now /api/health responds right away regardless,
-// and the DB connects in the background — every DB-backed route will still
-// correctly fail with a clear error until it connects, but the process
-// itself comes up immediately and stays up.
-app.listen(PORT, () => {
-  console.log(`TalentHub API listening on port ${PORT} [${process.env.NODE_ENV || "development"}]`);
-});
-
+// Bind the port immediately, independent of the database connection, when
+// running as a persistent server (local dev, Render, etc). Previously this
+// awaited connectDB() first — if Mongo was slow to connect, misconfigured, or
+// Atlas's IP allowlist didn't include the host's egress IP, app.listen()
+// never ran at all, so Render's deploy port-scan saw nothing listening on
+// 0.0.0.0 and failed the deploy outright ("No open ports detected"), even
+// though the failure was really "Mongo is slow/unreachable," not "the server
+// crashed." Now /api/health responds right away regardless, and the DB
+// connects in the background.
+//
+// On Vercel (and other serverless hosts), this file is required and its
+// exported `app` is invoked directly per-request by the platform's own
+// runtime — there's no persistent process to bind a port on, so skip
+// app.listen() there. Vercel sets process.env.VERCEL automatically.
 connectDB();
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`TalentHub API listening on port ${PORT} [${process.env.NODE_ENV || "development"}]`);
+  });
+}
 
 module.exports = app;

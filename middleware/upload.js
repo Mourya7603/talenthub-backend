@@ -29,10 +29,25 @@ if (USE_CLOUDINARY) {
 
 const UPLOAD_ROOT = path.join(__dirname, "..", "uploads");
 if (!USE_CLOUDINARY) {
-  ["resumes", "photos"].forEach((sub) => {
-    const dir = path.join(UPLOAD_ROOT, sub);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  });
+  // This runs at module load time (when this file is first require()'d),
+  // BEFORE any request is handled — on a read-only filesystem (Vercel and
+  // most other serverless hosts, outside /tmp) this throws EROFS and crashes
+  // the entire function for every route, not just upload ones, since Node
+  // can't finish loading the module. Wrapped so a read-only filesystem just
+  // disables the local-disk fallback (uploads will fail with a clear error
+  // at request time instead) rather than taking down the whole API.
+  try {
+    ["resumes", "photos"].forEach((sub) => {
+      const dir = path.join(UPLOAD_ROOT, sub);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    });
+  } catch (err) {
+    console.error(
+      `Could not create local upload directories (${err.message}). This is expected on a read-only ` +
+        "filesystem (e.g. Vercel) — set CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET " +
+        "to enable uploads in this environment. All other routes are unaffected."
+    );
+  }
 }
 
 const diskStorage = multer.diskStorage({
