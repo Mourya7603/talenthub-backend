@@ -208,6 +208,24 @@ const seed = async () => {
   console.log(`Created ${jobs.length} jobs across ${recruiters.length} recruiters.`);
 
   // ---------------------------------------------------------------------
+  // Deliberately expire a few jobs so the "Expired" UI is actually
+  // testable. Job.create() (above) correctly enforces "deadline must be in
+  // the future" — same as a real recruiter creating a job — so it can't be
+  // used to seed an already-past deadline. Job.updateOne() does NOT run
+  // Mongoose validators by default (runValidators defaults to false), which
+  // is exactly what's needed here: this is test-seeding infrastructure
+  // deliberately creating a past-deadline state, not real user input that
+  // should be validated.
+  // ---------------------------------------------------------------------
+  const jobsToExpire = jobs.slice(0, 3); // first 3 jobs (Nimbus Tech's) become expired
+  await Promise.all(
+    jobsToExpire.map((job) =>
+      Job.updateOne({ _id: job._id }, { $set: { applicationDeadline: daysAgo(2) } })
+    )
+  );
+  console.log(`Backdated ${jobsToExpire.length} jobs to an expired deadline for testing: ${jobsToExpire.map((j) => j.title).join(", ")}`);
+
+  // ---------------------------------------------------------------------
   // Applications: each applicant applies to a handful of jobs
   // ---------------------------------------------------------------------
   const statusPool = ["applied", "applied", "shortlisted", "rejected"]; // weighted toward "applied"
